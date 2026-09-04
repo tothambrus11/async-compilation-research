@@ -7,6 +7,7 @@
 #   isolation.swift  plain async vs nonisolated(nonsending), which removes the
 #                    executor hop (and, on wasm, the trampoline that bounds the stack)
 #   executor.swift   replacing the global executor with one that runs jobs inline
+#   depth.swift      what a resume costs in that lowering, as a function of depth
 #   tiny.swift       the smallest async loop, with and without -mtail-call
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -23,7 +24,7 @@ build() { # out extra-flags source
     grep -v "unknown driver flag" | head -3 || true
 }
 
-for p in floor isolation executor tiny; do
+for p in floor depth isolation executor tiny; do
   echo "===== $p"
   build "/tmp/probe_$p.wasm" "" "$p.swift"
   timeout 900 $RUN "/tmp/probe_$p.wasm" 2>&1 | head -6 || true

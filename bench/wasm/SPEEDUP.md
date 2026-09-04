@@ -172,6 +172,88 @@ callee owns an explicit frame, returns a status, and a driver loop re-enters it 
 **1.9 ns per call on wasm, against Swift's 359-556 ns.** A trampoline is not inherently expensive;
 a general-purpose executor used as one is.
 
+## The source of the inefficiency, in three layers
+
+It helps to separate what is an ABI choice, what is a consequence of that choice on this target, and
+what is merely Swift's implementation of the consequence.
+
+**1. The ABI choice: who transfers control.** Swift's async ABI is continuation-passing. An async
+callee does not return to its caller; it *calls* the caller's resume function. Control only ever
+moves forward. With guaranteed tail calls that is free — each transfer replaces the current frame, so
+depth is constant. Without them, "always call, never return" means the machine stack grows
+monotonically for the whole logical call chain.
+
+**2. The consequence: something must get back to a shallow stack.** A program cannot grow the stack
+forever, so on a target without tail calls something has to unwind to a fixed point periodically.
+Swift's runtime already owns a construct that does exactly that — the executor. Enqueue the
+continuation as a job, unwind, let the drain loop call it. That is why every `await` on wasm ends in
+`swift_task_switch`, and why removing the hop (`nonisolated(nonsending)`, or an executor that runs
+jobs inline) makes the program die with `call stack exhausted`. **The executor is not there to
+schedule anything; on this target it is load-bearing as a trampoline.**
+
+**3. The price: the trampoline is a general-purpose scheduler.** Every await pays a context
+allocation and free, an indirect dispatch, and then `swift_task_switch` — 331 wasm instructions —
+which compares executors, updates task status atomically, pushes onto a priority queue, unwinds, and
+is re-entered by the drain loop. Natively the same source takes that function's fast path (same
+executor, tail-call the continuation) and costs 17.5 ns. On wasm it is 285-556 ns. And it is paid on
+*every* await, including the overwhelming majority that never suspend: the benchmark's callee returns
+immediately and still costs 285 ns.
+
+## Can it be mitigated in Swift?
+
+| layer | mitigable? |
+|---|---|
+| 1. continuation-passing ABI | No. It is the ABI. |
+| 2. needing a trampoline | Yes — with working tail calls, which is the designed fix. The compiler already emits them; what is missing is a Wasm SDK whose concurrency runtime is built with `+tail-call` so the signatures agree. That is an SDK build-configuration change, not a language change. |
+| 3. the trampoline being a scheduler | Partly. A custom executor with a plain ring buffer instead of a priority queue and task-status atomics would cut some of the 285 ns, but the per-await context allocation, the indirect dispatch and one unwind-and-re-enter remain. It cannot approach the cost of a plain call. |
+
+Everything else measured is marginal: `-Ounchecked` 0 %, cross-module optimization 2 %, engine choice
+1.5x, and non-resilience does not apply because the hot path is the module's own code. The one lever
+that moved was a newer toolchain with the hermetic-LTO stdlib, 351 → 285 ns, −19 %.
+
+## Can it be avoided in a purpose-built backend?
+
+Entirely — by not making the choice in layer 1.
+
+Lower a suspending call as an **ordinary call that returns a status**, not as a continuation call:
+
+- Calling is a plain wasm `call`; the callee returns normally.
+- Suspension is a *return value*. The callee writes its resume index into its frame and returns
+  `Suspended`; each caller sees the status, records its own resume index, and returns `Suspended` in
+  turn. The stack unwinds naturally to a driver loop.
+- Resumption re-enters from the driver: each frame reads its resume index and `br_table`s to the
+  right continuation point.
+
+Nothing here needs tail calls, and the stack never exceeds the natural call depth, so no trampoline
+and no scheduler sit on the hot path. The costs, measured on wasm with the same methodology:
+
+| | wasm |
+|---|---:|
+| plain non-inlinable call | 0.87 ns |
+| call in the status-return shape | 1.88 ns |
+| suspend + resume, depth 1 | 4.0 ns |
+| suspend + resume, depth 4 | 14.5 ns |
+| suspend + resume, depth 16 | 71 ns |
+| suspend + resume, depth 64 | 802 ns |
+| *Swift: one await that does **not** suspend* | *285-556 ns* |
+| *Swift: one real suspension (`Task.yield`)* | *1402 ns* |
+
+**The trade is explicit.** Swift's design resumes in O(1) — the continuation points straight at the
+innermost frame — but needs tail calls to be affordable. The status-return design resumes in
+O(depth), but its per-call cost is one predictable branch and it needs nothing from the target.
+
+For a scripting language in a game engine that is the right side of the trade: awaits are frequent,
+*actual* suspensions are rare (a frame boundary, an animation, a host request), and script stacks are
+shallow. The numbers say a suspension at depth 16 costs 71 ns against Swift's 1402 ns, while an await
+that does not suspend costs 1 ns against 285 ns. The design is only wrong for code that suspends at
+the bottom of a deep recursion, and the depth-64 row shows where that begins to hurt.
+
+Three things a purpose-built backend gets for free that Swift cannot, because Swift's constraints are
+real: frame sizes are statically known (monomorphised, no dynamic dispatch, no ABI stability to
+preserve), so frames are bump-allocated with no async-function-pointer indirection; there is no
+executor on the hot path because the host drives resumption; and there are no task-status atomics
+because the guest is single-threaded.
+
 ## What this means for a new language
 
 The 30x wasm penalty measured in `RESULTS.md` is not the price of "every function is a coroutine".
