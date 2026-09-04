@@ -1,0 +1,10 @@
+# generated benchmark artifacts
+bench/bin/
+bench/gen/
+bench/wasm/*.wasm
+bench/wasm/*.log
+__pycache__/
+# generated rendering of the research report
+research/async-background.html
+bench/results_tables.md
+bench/wasm/results_chrome.md

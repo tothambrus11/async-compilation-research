@@ -1,0 +1,676 @@
+{
+ "env": {
+  "date": "2026-09-04 21:11:40+0200",
+  "power": {
+   "governor": "powersave",
+   "max_mhz": 4900,
+   "platform_profile": "balanced",
+   "on_ac": "1"
+  },
+  "swift": "Swift version 6.5-dev (LLVM 6f2057ffeafd4c6, Swift 83c32e02f71e4bb) | Target: x86_64-unknown-linux-gnu | Build config: +assertions",
+  "cpu": "12th Gen Intel(R) Core(TM) i9-12900H",
+  "cores": 20,
+  "kernel": "7.0.0-30-generic",
+  "arch": "x86_64",
+  "flags": "-O -parse-as-library -wmo"
+ },
+ "reps": 7,
+ "programs": {
+  "fib": {
+   "sync": {
+    "min": 70.34354700008407,
+    "median": 72.30187599989586,
+    "cksum": [
+     "39088169"
+    ],
+    "scale": null
+   },
+   "async": {
+    "min": 1447.86103800009,
+    "median": 1485.1011409999337,
+    "cksum": [
+     "39088169"
+    ],
+    "scale": null
+   },
+   "syncni": {
+    "min": 74.77478499989957,
+    "median": 75.44014000007883,
+    "cksum": [
+     "39088169"
+    ],
+    "scale": null
+   },
+   "asyncni": {
+    "min": 1477.418330000015,
+    "median": 1487.261216999963,
+    "cksum": [
+     "39088169"
+    ],
+    "scale": null
+   },
+   "mainactor": {
+    "min": 1473.7405769999605,
+    "median": 1481.7380049999338,
+    "cksum": [
+     "39088169"
+    ],
+    "scale": null
+   },
+   "mainactorni": {
+    "min": 1474.2418869999237,
+    "median": 1480.2221519998275,
+    "cksum": [
+     "39088169"
+    ],
+    "scale": null
+   }
+  },
+  "nbody": {
+   "sync": {
+    "min": 134.54269200004637,
+    "median": 135.62036300008185,
+    "cksum": [
+     "-169019082"
+    ],
+    "scale": null
+   },
+   "async": {
+    "min": 133.2977420000825,
+    "median": 135.25419999985024,
+    "cksum": [
+     "-169019082"
+    ],
+    "scale": null
+   },
+   "syncni": {
+    "min": 154.03430699999444,
+    "median": 157.45409099990502,
+    "cksum": [
+     "-169019082"
+    ],
+    "scale": null
+   },
+   "asyncni": {
+    "min": 212.1679080000613,
+    "median": 213.16817900002934,
+    "cksum": [
+     "-169019082"
+    ],
+    "scale": null
+   },
+   "mainactor": {
+    "min": 6596.286323999986,
+    "median": 6774.084162999876,
+    "cksum": [
+     "-169019082"
+    ],
+    "scale": null
+   },
+   "mainactorni": {
+    "min": 210.34928099997342,
+    "median": 215.34985300013795,
+    "cksum": [
+     "-169019082"
+    ],
+    "scale": null
+   }
+  },
+  "particles": {
+   "sync": {
+    "min": 35.966144000180066,
+    "median": 36.255838999990374,
+    "cksum": [
+     "133139"
+    ],
+    "scale": null
+   },
+   "async": {
+    "min": 131.89021599991247,
+    "median": 132.19352299999446,
+    "cksum": [
+     "133139"
+    ],
+    "scale": null
+   },
+   "syncni": {
+    "min": 454.6901939997915,
+    "median": 470.07676599989645,
+    "cksum": [
+     "133139"
+    ],
+    "scale": null
+   },
+   "asyncni": {
+    "min": 5951.801218000008,
+    "median": 6070.524615000002,
+    "cksum": [
+     "133139"
+    ],
+    "scale": null
+   },
+   "mainactor": {
+    "min": 161.14881399995647,
+    "median": 171.79265199997462,
+    "cksum": [
+     "133139"
+    ],
+    "scale": null
+   },
+   "mainactorni": {
+    "min": 6069.369059999939,
+    "median": 6139.317936000181,
+    "cksum": [
+     "133139"
+    ],
+    "scale": null
+   }
+  },
+  "collision": {
+   "sync": {
+    "min": 108.8719530000817,
+    "median": 110.10797600005753,
+    "cksum": [
+     "44920284"
+    ],
+    "scale": null
+   },
+   "async": {
+    "min": 110.91031399997883,
+    "median": 111.41683699982241,
+    "cksum": [
+     "44920284"
+    ],
+    "scale": null
+   },
+   "syncni": {
+    "min": 371.19167699990794,
+    "median": 379.1458129999228,
+    "cksum": [
+     "44920284"
+    ],
+    "scale": null
+   },
+   "asyncni": {
+    "min": 1720.1493729997892,
+    "median": 1799.5331289998721,
+    "cksum": [
+     "44920284"
+    ],
+    "scale": null
+   },
+   "mainactor": {
+    "min": 121.40153699996881,
+    "median": 126.33631899999455,
+    "cksum": [
+     "44920284"
+    ],
+    "scale": null
+   },
+   "mainactorni": {
+    "min": 1681.6310219999868,
+    "median": 1731.6016470000613,
+    "cksum": [
+     "44920284"
+    ],
+    "scale": null
+   }
+  },
+  "ecs": {
+   "sync": {
+    "min": 106.60583299980499,
+    "median": 110.3877560000401,
+    "cksum": [
+     "0"
+    ],
+    "scale": null
+   },
+   "async": {
+    "min": 124.02460599993356,
+    "median": 129.15686300001107,
+    "cksum": [
+     "0"
+    ],
+    "scale": null
+   },
+   "syncni": {
+    "min": 217.93012999999337,
+    "median": 222.08770700008608,
+    "cksum": [
+     "0"
+    ],
+    "scale": null
+   },
+   "asyncni": {
+    "min": 3050.4666459998116,
+    "median": 3111.5800290000625,
+    "cksum": [
+     "0"
+    ],
+    "scale": null
+   },
+   "mainactor": {
+    "min": 190.51398500008509,
+    "median": 194.97541900002398,
+    "cksum": [
+     "0"
+    ],
+    "scale": null
+   },
+   "mainactorni": {
+    "min": 3050.8356510000303,
+    "median": 3100.0375830000266,
+    "cksum": [
+     "0"
+    ],
+    "scale": null
+   }
+  },
+  "astar": {
+   "sync": {
+    "min": 105.64623999991454,
+    "median": 106.5065839998424,
+    "cksum": [
+     "35750"
+    ],
+    "scale": null
+   },
+   "async": {
+    "min": 151.5913780000992,
+    "median": 155.02567799994722,
+    "cksum": [
+     "35750"
+    ],
+    "scale": null
+   },
+   "syncni": {
+    "min": 118.90081300004385,
+    "median": 121.98752900003456,
+    "cksum": [
+     "35750"
+    ],
+    "scale": null
+   },
+   "asyncni": {
+    "min": 444.3367680001538,
+    "median": 478.0976390000433,
+    "cksum": [
+     "35750"
+    ],
+    "scale": null
+   },
+   "mainactor": {
+    "min": 153.0400320000481,
+    "median": 158.64680500002578,
+    "cksum": [
+     "35750"
+    ],
+    "scale": null
+   },
+   "mainactorni": {
+    "min": 432.20464999997057,
+    "median": 463.3230540000368,
+    "cksum": [
+     "35750"
+    ],
+    "scale": null
+   }
+  },
+  "parser": {
+   "sync": {
+    "min": 115.87090600002557,
+    "median": 122.56594600016251,
+    "cksum": [
+     "92249652270"
+    ],
+    "scale": null
+   },
+   "async": {
+    "min": 485.955748999957,
+    "median": 492.72956999996677,
+    "cksum": [
+     "92249652270"
+    ],
+    "scale": null
+   },
+   "syncni": {
+    "min": 278.84981000004336,
+    "median": 286.8674180000089,
+    "cksum": [
+     "92249652270"
+    ],
+    "scale": null
+   },
+   "asyncni": {
+    "min": 3717.944150000112,
+    "median": 3922.2438169999514,
+    "cksum": [
+     "92249652270"
+    ],
+    "scale": null
+   },
+   "mainactor": {
+    "min": 497.5365599999204,
+    "median": 518.3733230000362,
+    "cksum": [
+     "92249652270"
+    ],
+    "scale": null
+   },
+   "mainactorni": {
+    "min": 3559.873491999926,
+    "median": 3745.4756120000966,
+    "cksum": [
+     "92249652270"
+    ],
+    "scale": null
+   }
+  },
+  "sort": {
+   "sync": {
+    "min": 221.58912999997847,
+    "median": 231.82830699998885,
+    "cksum": [
+     "7963"
+    ],
+    "scale": null
+   },
+   "async": {
+    "min": 260.0621389998123,
+    "median": 263.85486599989235,
+    "cksum": [
+     "7963"
+    ],
+    "scale": null
+   },
+   "syncni": {
+    "min": 304.2794339999091,
+    "median": 318.73200000007637,
+    "cksum": [
+     "7963"
+    ],
+    "scale": null
+   },
+   "asyncni": {
+    "min": 1829.6822390002199,
+    "median": 1892.6242970000021,
+    "cksum": [
+     "7963"
+    ],
+    "scale": null
+   },
+   "mainactor": {
+    "min": 250.97026300011203,
+    "median": 252.38902899995446,
+    "cksum": [
+     "7963"
+    ],
+    "scale": null
+   },
+   "mainactorni": {
+    "min": 1802.7258329999167,
+    "median": 1901.8301840000786,
+    "cksum": [
+     "7963"
+    ],
+    "scale": null
+   }
+  },
+  "matmul": {
+   "sync": {
+    "min": 112.35245199990459,
+    "median": 116.7323360000737,
+    "cksum": [
+     "63627"
+    ],
+    "scale": null
+   },
+   "async": {
+    "min": 114.93273100000806,
+    "median": 119.66182599985041,
+    "cksum": [
+     "63627"
+    ],
+    "scale": null
+   },
+   "syncni": {
+    "min": 141.40391799993813,
+    "median": 146.54553200001828,
+    "cksum": [
+     "63627"
+    ],
+    "scale": null
+   },
+   "asyncni": {
+    "min": 151.59285699995235,
+    "median": 157.30492799985223,
+    "cksum": [
+     "63627"
+    ],
+    "scale": null
+   },
+   "mainactor": {
+    "min": 193.70880899997428,
+    "median": 199.3992130002007,
+    "cksum": [
+     "63627"
+    ],
+    "scale": null
+   },
+   "mainactorni": {
+    "min": 153.25090399989858,
+    "median": 158.1287739998661,
+    "cksum": [
+     "63627"
+    ],
+    "scale": null
+   }
+  },
+  "binarytrees": {
+   "sync": {
+    "min": 550.4991569998674,
+    "median": 570.18802900007,
+    "cksum": [
+     "14985902"
+    ],
+    "scale": null
+   },
+   "async": {
+    "min": 1456.4886970000807,
+    "median": 1536.9830640000291,
+    "cksum": [
+     "14985902"
+    ],
+    "scale": null
+   },
+   "syncni": {
+    "min": 521.3472869999241,
+    "median": 563.5234610000625,
+    "cksum": [
+     "14985902"
+    ],
+    "scale": null
+   },
+   "asyncni": {
+    "min": 1396.874662999995,
+    "median": 1451.852055999916,
+    "cksum": [
+     "14985902"
+    ],
+    "scale": null
+   },
+   "mainactor": {
+    "min": 1638.0546079999767,
+    "median": 1653.2487909998745,
+    "cksum": [
+     "14985902"
+    ],
+    "scale": null
+   },
+   "mainactorni": {
+    "min": 1618.8127119999845,
+    "median": 1629.5605059999507,
+    "cksum": [
+     "14985902"
+    ],
+    "scale": null
+   }
+  },
+  "microcall": {
+   "sync": {
+    "min": 2.0801119999960065,
+    "median": 2.2131309998221695,
+    "cksum": [
+     "29953"
+    ],
+    "scale": null
+   },
+   "async": {
+    "min": 2.233942999970168,
+    "median": 2.2484599999152124,
+    "cksum": [
+     "29953"
+    ],
+    "scale": null
+   },
+   "syncni": {
+    "min": 16.814097999827936,
+    "median": 17.131836000131443,
+    "cksum": [
+     "29953"
+    ],
+    "scale": null
+   },
+   "asyncni": {
+    "min": 367.13968799985014,
+    "median": 369.3758519999683,
+    "cksum": [
+     "29953"
+    ],
+    "scale": null
+   },
+   "mainactor": {
+    "min": 0.010726999957114458,
+    "median": 0.011694000102579594,
+    "cksum": [
+     "49057"
+    ],
+    "scale": 200
+   },
+   "mainactorni": {
+    "min": 1.6109070000238717,
+    "median": 1.7763320000376552,
+    "cksum": [
+     "49057"
+    ],
+    "scale": 200
+   }
+  },
+  "microyield": {
+   "microyield.call": {
+    "min": 37.219527000095695,
+    "median": 37.70684500015341,
+    "cksum": [
+     "55425"
+    ]
+   },
+   "microyield.yield": {
+    "min": 684.0960099999793,
+    "median": 687.5182360000908,
+    "cksum": [
+     "2000000"
+    ]
+   }
+  }
+ },
+ "sizes": {
+  "fib": {
+   "sync": 27040,
+   "async": 35224,
+   "syncni": 27112,
+   "asyncni": 35288,
+   "mainactor": 28480,
+   "mainactorni": 28504
+  },
+  "nbody": {
+   "sync": 27248,
+   "async": 39304,
+   "syncni": 32488,
+   "asyncni": 40928,
+   "mainactor": 32824,
+   "mainactorni": 34200
+  },
+  "particles": {
+   "sync": 27208,
+   "async": 35208,
+   "syncni": 28280,
+   "asyncni": 42000,
+   "mainactor": 32584,
+   "mainactorni": 35248
+  },
+  "collision": {
+   "sync": 27880,
+   "async": 35888,
+   "syncni": 33096,
+   "asyncni": 42688,
+   "mainactor": 33376,
+   "mainactorni": 35968
+  },
+  "ecs": {
+   "sync": 27216,
+   "async": 39232,
+   "syncni": 32952,
+   "asyncni": 43080,
+   "mainactor": 32784,
+   "mainactorni": 40560
+  },
+  "astar": {
+   "sync": 32176,
+   "async": 40944,
+   "syncni": 32408,
+   "asyncni": 46488,
+   "mainactor": 34400,
+   "mainactorni": 39776
+  },
+  "parser": {
+   "sync": 40576,
+   "async": 69264,
+   "syncni": 32592,
+   "asyncni": 48424,
+   "mainactor": 58872,
+   "mainactorni": 41840
+  },
+  "sort": {
+   "sync": 28104,
+   "async": 40976,
+   "syncni": 28248,
+   "asyncni": 42448,
+   "mainactor": 34232,
+   "mainactorni": 39856
+  },
+  "matmul": {
+   "sync": 27200,
+   "async": 35160,
+   "syncni": 27920,
+   "asyncni": 40432,
+   "mainactor": 28464,
+   "mainactorni": 33632
+  },
+  "binarytrees": {
+   "sync": 28136,
+   "async": 41568,
+   "syncni": 28240,
+   "asyncni": 41664,
+   "mainactor": 34928,
+   "mainactorni": 35008
+  },
+  "microcall": {
+   "sync": 27024,
+   "async": 35024,
+   "syncni": 27152,
+   "asyncni": 35304,
+   "mainactor": 28152,
+   "mainactorni": 28456
+  }
+ }
+}

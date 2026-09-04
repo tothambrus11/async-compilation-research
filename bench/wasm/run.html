@@ -1,0 +1,26 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>wasm bench</title>
+<pre id="out">running</pre>
+<script type="module">
+import { runModule } from "./wasi-shim.js";
+const p = new URLSearchParams(location.search);
+const mod = p.get("mod"), scale = p.get("scale") || "1", reps = +(p.get("reps") || 1);
+const runs = [];
+let last = null;
+for (let i = 0; i < reps; i++) {
+  last = await runModule("./" + mod + ".wasm", [mod, scale]);
+  runs.push(last);
+}
+const best = runs.reduce((a, b) => (a.wallMs < b.wallMs ? a : b));
+const result = {
+  mod, scale, reps,
+  stdout: best.stdout.trim(),
+  trap: best.trap,
+  wallMs: Math.min(...runs.map(r => r.wallMs)),
+  compileMs: best.compileMs,
+};
+document.getElementById("out").textContent = JSON.stringify(result, null, 1);
+document.title = "done";
+await fetch("/result", { method: "POST", body: JSON.stringify(result) });
+</script>
