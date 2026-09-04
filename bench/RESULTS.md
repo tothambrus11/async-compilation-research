@@ -114,9 +114,11 @@ Swift's async on WebAssembly is a different proposition from Swift's async on x8
   recursion depth.
 
 The cause is that the WebAssembly target has no guaranteed tail calls in this configuration. Swift's
-async lowering wants `musttail` at every suspension and resume; `-mtail-call` is not on by default,
-and turning it on in Swift 6.3.3 produced a module Wasmtime rejects as malformed
-(`type mismatch: expected i32 but nothing on stack`), so the tail-call path is not usable today.
+async lowering wants `musttail` at every suspension and resume; on wasm32 with Swift 6.3.3 it emits
+neither `swifttailcc` nor `musttail` at all, falling back to ordinary calls, where the same program
+built natively emits 15 and 7 of them. Swift's `swifttailcc` support for WebAssembly landed upstream
+after 6.3 was released, and could not be tested here because a Wasm SDK only works with the exact
+toolchain version it was built for.
 
 Every `await` therefore ends in `call swift_task_switch`, and on wasm that takes the enqueue path:
 a non-suspending await costs about what a *real* suspension costs natively. The bounce is

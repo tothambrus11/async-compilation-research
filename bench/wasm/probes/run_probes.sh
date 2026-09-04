@@ -33,6 +33,23 @@ echo "===== tiny, with tail calls (expected: broken codegen in Swift 6.3.3)"
 build /tmp/probe_tiny_tc.wasm "-Xcc -mtail-call" tiny.swift
 timeout 900 $RUN --wasm tail-call=y /tmp/probe_tiny_tc.wasm 2>&1 | head -5 || true
 
+echo "===== does the wasm target use the async tail-call convention?"
+# Native async uses swifttailcc + musttail.  On wasm32 in Swift 6.3.3 neither appears,
+# with or without -Xcc -mtail-call: the async lowering falls back to ordinary calls.
+for cfg in "native:" "wasm:" "wasm+tailcall:-Xcc -mtail-call"; do
+  lbl=${cfg%%:*}; flags=${cfg#*:}
+  if [ "$lbl" = native ]; then
+    swiftly run "+$TC" swiftc -O -parse-as-library -wmo -emit-ir tiny.swift -o /tmp/probe_ir.ll 2>/dev/null || true
+  else
+    swiftly run "+$TC" swiftc -O -parse-as-library -wmo -target wasm32-unknown-wasip1 $flags \
+      -sdk "$SDK/WASI.sdk" -sysroot "$SDK/WASI.sdk" -resource-dir "$RES" \
+      -emit-ir tiny.swift -o /tmp/probe_ir.ll 2>/dev/null || true
+  fi
+  printf "  %-16s swifttailcc=%-4s musttail=%-4s swiftasync-param=%s\n" "$lbl" \
+    "$(grep -c swifttailcc /tmp/probe_ir.ll)" "$(grep -c musttail /tmp/probe_ir.ll)" \
+    "$(grep -c 'ptr swiftasync' /tmp/probe_ir.ll)"
+done
+
 echo "===== native baseline for comparison"
 swiftly run "+$TC" swiftc -O -parse-as-library -wmo floor.swift -o /tmp/probe_floor_native 2>&1 | head -2 || true
 taskset -c 2 /tmp/probe_floor_native

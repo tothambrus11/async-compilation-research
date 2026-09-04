@@ -58,16 +58,47 @@ recursion (`fib`) accumulates frames faster than the bounce can unwind them and 
 | Non-resilience | The wasm stdlib does ship `.swiftinterface` files, so it is built resilient, but the hot path is the module's own code, compiled `-wmo`. Not the bottleneck. |
 | `nonisolated(nonsending)` | Native −31 %. Wasm: traps. |
 | Custom inline executor (`swift_task_enqueueGlobal_hook`) | Wasm: traps. |
-| `-Xcc -mtail-call` | Emits 27 `return_call` instructions, and produces **invalid or faulting wasm**: `type mismatch: expected i32 but nothing on stack` on the larger probe, an out-of-bounds memory access on a six-line one. A Swift 6.3.3 codegen bug, not a mixing problem. |
+| `-Xcc -mtail-call` | Does **not** enable the async tail-call lowering in Swift 6.3.3 — see below. It turns on the LLVM `+tail-call` target feature, which yields 27 `return_call` instructions from ordinary tail-call optimization and produces **invalid or faulting wasm**: `type mismatch: expected i32 but nothing on stack` on the larger probe, an out-of-bounds memory access on a six-line one. |
 | Engine choice | Wasmtime 359 ns vs Chrome 556 ns. Engines differ by ~1.5x; neither is the cause. |
 | Toolchain version | Swift 6.3.3 and 6.5-dev are within noise natively (17.45 vs 17.10 ns). Not a version regression. |
+
+## What `-Xcc -mtail-call` does, and does not do
+
+A Clang flag looks like an odd lever on Swift codegen, so it is worth being precise. Swift derives
+the LLVM target features it compiles with from the Clang importer's target configuration, so `-Xcc`
+flags that set target features do reach the backend. That much is observable: the flag adds
+`+tail-call` to the emitted `"target-features"` attribute.
+
+What it does **not** do in Swift 6.3.3 is switch the async calling convention. Comparing
+`-emit-ir` output for the same program:
+
+| build | `swifttailcc` | `musttail` | `swiftasync` context parameter |
+|---|---:|---:|---:|
+| native, Swift 6.3.3 | 15 | 7 | 7 |
+| native, Swift 6.5-dev | 15 | 7 | 7 |
+| wasm32, Swift 6.3.3, with `-Xcc -mtail-call` | **0** | **0** | 7 |
+
+On wasm the async functions keep their async context parameter but are emitted as ordinary `swiftcc`
+functions with ordinary calls: the fallback regime that exists precisely because the target has no
+guaranteed tail calls. The 27 `return_call` instructions the flag produces come from generic
+tail-call optimization elsewhere in the module, not from the async lowering, and enabling that
+optimization is what breaks the module.
+
+So the honest statement is not "the fix is broken" but "the fix is not in this toolchain". Swift's
+`swifttailcc` support for WebAssembly landed upstream between March and June 2026
+([llvm#188296](https://github.com/llvm/llvm-project/pull/188296),
+[clang#203330](https://github.com/llvm/llvm-project/pull/203330),
+[swift#88074](https://github.com/swiftlang/swift/pull/88074)), after Swift 6.3 was released on
+24 March 2026. It should be testable on 6.4 or newer; it could not be tested here because a Swift SDK
+for WebAssembly only works with the exact toolchain version it was built for, and the newest
+available pairing was 6.3.3.
 
 ## What would actually make it fast
 
 **Working tail calls.** That is the designed fix, and everything else is a workaround for its
-absence. The `tail-call` feature is in Wasm 3.0 and shipped in every engine; only Swift's emission of
-it is broken today. With it, the continuation call becomes `return_call`, the stack stops growing,
-and no bounce is needed.
+absence. The `tail-call` feature is in Wasm 3.0 and shipped in every engine; what is missing is a
+Swift toolchain that emits `swifttailcc` for WebAssembly *and* has a matching Wasm SDK. With it, the
+continuation call becomes `return_call`, the stack stops growing, and no bounce is needed.
 
 **Failing that, a cheaper trampoline.** If a bounce is unavoidable, it does not have to be a
 scheduler. The `floor.swift` probe measures the shape a purpose-built lowering would emit — the
