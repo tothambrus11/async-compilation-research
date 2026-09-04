@@ -1065,9 +1065,22 @@ backtrace alternates each function's ramp and resume partial functions, the shap
 coroutine returns by *calling* its continuation instead of tail-calling it. The cause is the absence
 of guaranteed tail calls: Swift's async lowering wants `musttail` at every suspension and resume,
 `-mtail-call` is off by default, and enabling it in Swift 6.3.3 produced a module Wasmtime rejects as
-malformed. This is direct evidence for §6.2's recommendation: a Wasm lowering must make a suspending
-call an ordinary call and resumption a re-entry from a driver loop, which needs no tail calls at all.
-Porting a CPS-style async ABI to Wasm unchanged does not work.
+malformed. Every `await` therefore ends in `call swift_task_switch`, and on wasm that takes the
+enqueue path, so a non-suspending await costs roughly what a real suspension costs natively (362 ns
+against 342 ns). That bounce is load-bearing: removing it, either with `nonisolated(nonsending)` or
+with a custom executor that runs jobs inline, makes the program trap, because without tail calls the
+continuation call nests and the stack grows. Swift's executor is serving as an accidental
+trampoline, and its price is a general-purpose scheduler on every await. Nothing else moves the
+number: `-Ounchecked`, cross-module optimization, non-resilience, the engine and the toolchain
+version are all worth 2% or less ([bench/wasm/SPEEDUP.md](../bench/wasm/SPEEDUP.md)).
+
+The floor is far lower. A hand-written lowering of exactly the shape §6.2 proposes — the callee owns
+an explicit frame, returns a status, and a driver loop re-enters it on a resume index — costs
+**1.9 ns per call on wasm**, against 0.87 ns for a plain call and Swift's 359-556 ns. So the 30x wasm
+penalty is not the price of "every function is a coroutine"; it is the price of pressing a
+general-purpose runtime into service as a trampoline on a target its lowering was not designed for.
+Porting a CPS-style async ABI to Wasm unchanged does not work; a driver-loop design costs 2.2x a
+plain call and needs no tail calls at all.
 
 **The await point is where the money goes, and the cost model is brittle.** The first run of this
 suite left the workload in Swift's MainActor-isolated `main`, and `nbody` came out 49x slower, with

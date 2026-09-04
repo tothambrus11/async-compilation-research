@@ -118,6 +118,14 @@ async lowering wants `musttail` at every suspension and resume; `-mtail-call` is
 and turning it on in Swift 6.3.3 produced a module Wasmtime rejects as malformed
 (`type mismatch: expected i32 but nothing on stack`), so the tail-call path is not usable today.
 
+Every `await` therefore ends in `call swift_task_switch`, and on wasm that takes the enqueue path:
+a non-suspending await costs about what a *real* suspension costs natively. The bounce is
+load-bearing — removing it with `nonisolated(nonsending)` or a custom inline executor makes the
+program trap, because without tail calls the continuation call nests and the stack grows. Swift's
+executor is acting as an accidental trampoline. A hand-written status-return lowering with a driver
+loop costs **1.9 ns per call** on the same target. The full investigation, with every lever measured,
+is in [wasm/SPEEDUP.md](wasm/SPEEDUP.md).
+
 For a language designing its own lowering this is a strong argument against porting a CPS-style
 async ABI to WebAssembly unchanged, and in favour of a design where a suspending call is an ordinary
 call and resumption re-enters a frame from a driver loop, which needs no tail calls at all.

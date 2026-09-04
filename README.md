@@ -52,6 +52,13 @@ non-inlinable async call, and a naive recursive benchmark traps with `Maximum ca
 exceeded`, because Swift's async lowering needs guaranteed tail calls that the WebAssembly target
 does not provide by default.
 
+[`bench/wasm/SPEEDUP.md`](bench/wasm/SPEEDUP.md) follows up on the WebAssembly result: the time goes
+to an executor hop on every `await`, that hop is load-bearing because without guaranteed tail calls
+the continuation call nests and the stack grows, and a hand-written status-return lowering on the
+same target costs 1.9 ns per call instead of 556 ns. Every lever — `-Ounchecked`, cross-module
+optimization, non-resilience, `nonisolated(nonsending)`, a custom executor, `-mtail-call`, a
+different engine, a different toolchain — is measured there.
+
 See [`bench/RESULTS.md`](bench/RESULTS.md) for the tables, the method, and the caveats, of which the
 most important is that Swift's async is an upper bound for a new language: its frames are
 dynamically sized for ABI stability, allocated from a per-task slab allocator, and its default
