@@ -1064,10 +1064,11 @@ all: it dies with `Maximum call stack size exceeded`, in Chrome and in Wasmtime 
 backtrace alternates each function's ramp and resume partial functions, the shape you get when a
 coroutine returns by *calling* its continuation instead of tail-calling it. The cause is the absence
 of guaranteed tail calls: Swift's async lowering wants `musttail` at every suspension and resume,
-on wasm32 with Swift 6.3.3 it emits neither `swifttailcc` nor `musttail` at all, falling back to
-ordinary calls, where the same program built natively emits 15 and 7 of them; that support landed
-upstream after 6.3 was released and could not be tested here, since a Wasm SDK only works with the
-exact toolchain version it was built for. Every `await` therefore ends in `call swift_task_switch`, and on wasm that takes the
+Swift 6.3.3 does not emit it for wasm32 at all, while a current 6.5-dev toolchain does — and then
+the link fails, because no shipping Wasm SDK ships a concurrency runtime built with the same target
+feature, so `wasm-ld` reports a signature mismatch on `swift_task_switch` and the engine rejects the
+module. That holds across three toolchain/SDK pairings, including SwiftWasm's hermetic-LTO bundle,
+whose C++ runtime is still prebuilt objects rather than bitcode. Every `await` therefore ends in `call swift_task_switch`, and on wasm that takes the
 enqueue path, so a non-suspending await costs roughly what a real suspension costs natively (362 ns
 against 342 ns). That bounce is load-bearing: removing it, either with `nonisolated(nonsending)` or
 with a custom executor that runs jobs inline, makes the program trap, because without tail calls the

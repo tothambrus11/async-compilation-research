@@ -58,9 +58,62 @@ recursion (`fib`) accumulates frames faster than the bounce can unwind them and 
 | Non-resilience | The wasm stdlib does ship `.swiftinterface` files, so it is built resilient, but the hot path is the module's own code, compiled `-wmo`. Not the bottleneck. |
 | `nonisolated(nonsending)` | Native −31 %. Wasm: traps. |
 | Custom inline executor (`swift_task_enqueueGlobal_hook`) | Wasm: traps. |
-| `-Xcc -mtail-call` | Does **not** enable the async tail-call lowering in Swift 6.3.3 — see below. It turns on the LLVM `+tail-call` target feature, which yields 27 `return_call` instructions from ordinary tail-call optimization and produces **invalid or faulting wasm**: `type mismatch: expected i32 but nothing on stack` on the larger probe, an out-of-bounds memory access on a six-line one. |
+| `-Xcc -mtail-call` | On Swift 6.3.3 it does not enable the async tail-call lowering at all. On a current toolchain it does, and then the link fails against the prebuilt runtime — see below. |
+| Newer toolchain + hermetic-LTO stdlib | 351 → 285 ns per call, **−19 %**. The only lever that moved the number. |
 | Engine choice | Wasmtime 359 ns vs Chrome 556 ns. Engines differ by ~1.5x; neither is the cause. |
 | Toolchain version | Swift 6.3.3 and 6.5-dev are within noise natively (17.45 vs 17.10 ns). Not a version regression. |
+
+## The tail-call path: compiler support exists, the runtime does not
+
+This took three passes to get right, and the first two answers were wrong.
+
+**Pass 1 — "tail calls are broken".** With Swift 6.3.3, `-Xcc -mtail-call` produced modules engines
+reject. That looked like a codegen bug.
+
+**Pass 2 — "the fix is not in this toolchain".** Comparing `-emit-ir` output showed 6.3.3 never
+emitted the async tail-call convention for wasm at all, with or without the flag: it fell back to
+ordinary `swiftcc` calls, where the same program built natively emits `swifttailcc` and `musttail`.
+The `return_call` instructions the flag produced came from generic tail-call optimization elsewhere.
+
+**Pass 3 — the actual blocker.** Pairing a current toolchain (`main-snapshot-2026-08-30`, Swift
+6.5-dev) with a matching Wasm SDK, the compiler *does* emit the async convention for wasm32:
+
+| build | `swifttailcc` | `musttail` | `swiftasync` param |
+|---|---:|---:|---:|
+| native | 15 | 7 | 7 |
+| wasm32, Swift 6.3.3, `-Xcc -mtail-call` | 0 | 0 | 7 |
+| wasm32, Swift 6.5-dev, `-Xcc -mtail-call` | **15** | **7** | 7 |
+
+and emits 7 `return_call` instructions for the async transfers. The link then fails:
+
+```
+wasm-ld: warning: function signature mismatch: swift_task_switch
+>>> defined as (i32, i32, i32, i32, i32, i32, i32) -> void in libswift_Concurrency.a(Actor.cpp.o)
+>>> defined as (i32, i32, i32, i32, i32, i32)      -> void in <my code>.lto.o
+```
+
+The tail-call convention changes the signature of the runtime entry points, and **no shipping Wasm
+SDK provides a concurrency runtime built with the same target feature**. wasm-ld emits a trapping
+stub, and the module is rejected: `type mismatch: expected i32 but nothing on stack`. This is exactly
+the blocker recorded in [swiftwasm#5568](https://github.com/swiftwasm/swift/issues/5568): "we need to
+build separate stdlib builds for tail-call enabled and not."
+
+Configurations tested, all with the same outcome:
+
+| toolchain | Wasm SDK | result |
+|---|---|---|
+| Swift 6.3.3 | 6.3.3 release | no `swifttailcc` emitted at all |
+| Swift 6.5-dev (2026-07-11) | swift.org snapshot, same date | emits it; signature mismatch on `swift_task_switch` |
+| Swift 6.5-dev (2026-08-30) | SwiftWasm **hermetic-LTO**, same date | emits it; same mismatch |
+| as above, plus `nonisolated(nonsending)` to remove the hop | | same mismatch: the stdlib still references the symbol |
+
+Hermetic LTO was the most promising candidate, because it ships the Swift stdlib as bitcode that is
+code-generated at link time with the final target features. It does not help: the *C++* concurrency
+runtime (`libswift_Concurrency.a`) ships as prebuilt wasm objects, not bitcode, so `Actor.cpp.o`
+keeps its non-tail-call signature regardless.
+
+Getting past this needs a Wasm SDK whose concurrency runtime is compiled with `+tail-call`, which
+means building the Swift runtime from source for wasm. That is the one experiment not run here.
 
 ## What `-Xcc -mtail-call` does, and does not do
 
@@ -96,9 +149,15 @@ available pairing was 6.3.3.
 ## What would actually make it fast
 
 **Working tail calls.** That is the designed fix, and everything else is a workaround for its
-absence. The `tail-call` feature is in Wasm 3.0 and shipped in every engine; what is missing is a
-Swift toolchain that emits `swifttailcc` for WebAssembly *and* has a matching Wasm SDK. With it, the
-continuation call becomes `return_call`, the stack stops growing, and no bounce is needed.
+absence. The `tail-call` feature is in Wasm 3.0 and shipped in every engine, and the Swift compiler
+now emits the right thing for wasm32. What is missing is a Wasm SDK whose concurrency runtime is
+built with the same feature, so that the two sides agree on the signature of `swift_task_switch`.
+Until such an SDK exists, async on wasm cannot use tail calls no matter what flags you pass.
+
+**Upgrading the toolchain and using the LTO stdlib.** Worth a real but modest amount: a non-inlinable
+async call goes from 351 ns (Swift 6.5-dev with the swift.org snapshot SDK) to 285 ns (same compiler
+family with SwiftWasm's hermetic-LTO SDK), a 19 % improvement, against 0.9 ns for a sync call in
+both.
 
 **Failing that, a cheaper trampoline.** If a bounce is unavoidable, it does not have to be a
 scheduler. The `floor.swift` probe measures the shape a purpose-built lowering would emit — the
