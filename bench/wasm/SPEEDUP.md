@@ -363,6 +363,57 @@ emits `musttail` for C++20 symmetric transfer only when the target supports tail
 without `-mtail-call` symmetric transfer silently becomes a stack-growing ordinary call — the same
 trap Swift falls into.
 
+## What the literature says, and the number that decides the design
+
+The measurements above have a rigorous form in the continuations literature, and it is worth citing
+because it settles the complexity argument rather than resting on one benchmark.
+
+**Clinger, Hartheimer and Ost, "Implementation Strategies for First-Class Continuations"** (*HOSC*
+12(1):7-45, 1999, [doi:10.1023/A:1010016816429](https://doi.org/10.1023/A:1010016816429)) tabulates
+every strategy against four operations. With *N* the continuation size and *M* the frames thrown to:
+
+| | gc (heap frames, i.e. CPS) | heap | stack | stack/heap | segmented |
+|---|---|---|---|---|---|
+| first capture | **Θ(1)** | Θ(M) | Θ(N) | Θ(N) | Θ(1) |
+| recapture | **Θ(1)** | Θ(1) | Θ(N) | Θ(1) | Θ(1) |
+| throw (resume) | **Θ(1)** | Θ(1) | Θ(N) | Θ(1) | Θ(1) |
+| returns after throw | **Θ(1)** | O(N) | Θ(1) | O(N) | **Θ(N)** |
+
+Heap-allocated continuation frames — the CPS design measured above — is the only strategy that is
+Θ(1) on all four rows. The last row is also the asymptotic argument against segmented stacks, which
+are cheap to capture and resume but re-pay Θ(N) on the returns afterwards.
+
+**The crossover is the real design parameter.** Bruggeman, Waddell and Dybvig (PLDI 1996,
+[doi:10.1145/231379.231395](https://doi.org/10.1145/231379.231395)) put it precisely: a heap-based
+implementation is superior "only if context switches occur more frequently than once every eight
+procedure calls". Farvardin and Reppy's "From Folklore to Fact" (PLDI 2020, Distinguished Paper,
+[doi:10.1145/3385412.3385994](https://doi.org/10.1145/3385412.3385994)) confirmed this on modern
+hardware through one compiler: on plain recursion, stack strategies beat CPS by **1.38-1.46x**; on
+continuation-heavy code CPS wins by a mile (stack strategies at 0.16-0.37x, and as low as 0.01x on
+one benchmark). Their summary of CPS: "the simplest implementation… Its downside is poorer sequential
+performance."
+
+So the honest sequential tax for full CPS is about **1.4x**, not the 10x that Hoot's experience
+suggests — Hoot pays extra for reasons of its own (four explicit stacks, no sum types for stack
+elements). And there is evidence the wasm-specific penalty is smaller still: wasm_of_ocaml reportedly
+measures the CPS penalty at ~1.7x on wasm against ~7x on JavaScript, and part of the residual has
+been traced to engine artefacts (branch mispredictions, and Wasmtime's tail-call argument passing
+described as "an accident") rather than to the technique. **Those last figures reached this note
+relayed rather than fetched first-hand; treat them as indicative and verify before quoting.**
+
+Together with the crossover, this is what settles the design: a scripting language in a game engine
+suspends far less often than once per eight calls, which is exactly the regime where full CPS loses.
+**That is why the effect row is load-bearing rather than an optimisation** — it confines the CPS form
+to the functions that can actually suspend, so ordinary code keeps plain wasm calls and only
+suspendable code pays the 1.4x.
+
+**One more precedent worth copying.** Every production backend that shipped async to wasm chose a
+compiler-generated state machine over engine stack switching, and Dart measured JSPI and removed it.
+Kotlin is the counter-current, and it shipped its stack-switching backend *behind the same
+`Continuation` API* as its state-machine one. The lesson is to define one IR-level suspension
+interface and choose the lowering behind it per target and per build — the same conclusion
+wasm_of_ocaml reached with its `--effects=` switch.
+
 ## What this means for a new language
 
 The 30x wasm penalty measured in `RESULTS.md` is not the price of "every function is a coroutine".
@@ -378,3 +429,9 @@ Three design rules follow, and they are the same ones the
    suspend, which is most of them.
 3. Keep the frame layout compiler-known and the resume dispatch a `br_table` on a small integer.
    That is what buys the 1.9 ns.
+4. Gate the whole transformation on the effect row. The literature's crossover — heap continuations
+   pay off only above roughly one context switch per eight calls — puts a game scripting language
+   firmly on the side where untransformed code must stay untransformed.
+5. Put the suspension mechanism behind one IR-level interface, so that CPS with tail calls, a
+   status-return driver, JSPI and eventually core stack switching are build-time choices rather than
+   language-design commitments. Kotlin and wasm_of_ocaml both ship two lowerings behind one API.
