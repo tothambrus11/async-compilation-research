@@ -254,6 +254,63 @@ preserve), so frames are bump-allocated with no async-function-pointer indirecti
 executor on the hot path because the host drives resumption; and there are no task-status atomics
 because the guest is single-threaded.
 
+## A third lowering: CPS with WebAssembly tail calls
+
+The two lowerings compared so far both have a flaw. Swift's continuation-passing needs guaranteed
+tail calls and, without them, must bounce through a scheduler. The status-return design needs no
+engine feature, but resuming re-enters every frame (O(depth)), and while a chain is *running* it
+occupies that many real wasm frames, so a recursive suspendable function can still exhaust the stack.
+
+There is a third option that has neither flaw: continuation passing **with** `return_call`, frames in
+linear memory. Every transfer — call, return, and resume — is a tail call, so the wasm stack depth is
+constant no matter how deep the logical chain is, and resuming means calling the innermost frame's
+continuation directly.
+
+`probes/lowering.c` implements both designs and measures them. It is written in C because clang can
+emit `return_call` for wasm today, which is the thing Swift's SDK cannot currently do.
+
+Nanoseconds per resume, wasmtime / Chrome:
+
+| depth | status-return + driver re-entry | CPS + tail calls |
+|---:|---:|---:|
+| 1 | 3.1 / 4.5 | 7.2 / 11.5 |
+| 4 | 12.0 / 13.5 | 6.8 / 8.0 |
+| 16 | 31.8 / 38.0 | 7.0 / 6.0 |
+| 64 | 324.2 / 433.5 | 6.8 / 5.5 |
+| 256 | 1026.4 / 1986.0 | 7.0 / 5.5 |
+
+Stack safety, wasmtime: the CPS version completes a **2,000,000-deep** chain at about 11 ns per
+frame. The status version traps with `call stack exhausted` between 8,000 and 12,000 deep.
+
+The cost is per call rather than per resume: every suspendable call allocates a frame and dispatches
+indirectly, about 7 ns per frame against 0.87 ns for a plain call. That is what the effect row is
+for — only functions whose row contains a suspend effect need the CPS form, and everything else keeps
+ordinary wasm calls. Effect-row specialisation stops being an optional optimisation and becomes the
+thing that makes this affordable.
+
+### Is the feature actually there?
+
+Tail calls are Phase 5 and, unlike exception handling or stack switching, essentially universal
+(from [webassembly.org/features](https://webassembly.org/features/), read 2026-09-05):
+
+| engine | tail calls |
+|---|---|
+| Chrome | 112 |
+| Firefox | 121 |
+| Safari | 18.2 |
+| Node.js | 20.0 |
+| Deno | 1.32 |
+| Wasmtime | default with Cranelift |
+| Wasmer | 7.1 (off by default in `Features`) |
+| Wasmi | 0.28 |
+| WasmEdge | 0.10.0 |
+| Wasm3 | 0.9.0 |
+| wazero, wasm2c | behind a flag |
+| GraalWasm | not supported |
+
+`wasm-encoder` emits `return_call` and `return_call_indirect`, so a backend that generates wasm
+directly is not exposed to the SDK packaging problem that blocks Swift.
+
 ## What this means for a new language
 
 The 30x wasm penalty measured in `RESULTS.md` is not the price of "every function is a coroutine".
