@@ -311,6 +311,58 @@ Tail calls are Phase 5 and, unlike exception handling or stack switching, essent
 `wasm-encoder` emits `return_call` and `return_call_indirect`, so a backend that generates wasm
 directly is not exposed to the SDK packaging problem that blocks Swift.
 
+## The full landscape of lowerings, and what each one costs
+
+Three questions have to be asked separately, because production compilers answer them differently:
+**(A)** what does it cost to re-enter the *innermost* suspended frame; **(B)** what does it cost to
+propagate a result back up N awaiting frames, and does that use N *nested wasm frames* or N
+iterations of a loop; and **(C)** does a deep descent that suspends only at the bottom fit on the
+wasm stack.
+
+| lowering | (A) re-enter innermost | (B) propagate up N | (C) survives deep descent | wasm features | used by |
+|---|---|---|---|---|---|
+| Asyncify | O(depth) x function size, by replay | O(depth) | rebuilt on rewind | none | Emscripten, TinyGo |
+| status-return + driver re-entry | O(depth) | O(depth) | **no** — traps at 8-12k here | none | (the simple option) |
+| heap state machine, O(1) re-entry, loop or queue trampoline | **O(1)** | O(N) loop iterations or queue turns, constant stack | no — the descent is N real frames | GC + EH (Kotlin, Dart); none (Go) | Kotlin/Wasm, dart2wasm, Go |
+| **CPS + tail calls, frames in memory** | **O(1)** | O(N) tail calls, constant stack | **yes** — 2,000,000 deep here | **tail calls** (+GC if frames are GC objects) | Guile Hoot, wasm_of_ocaml `--effects=cps` |
+| JSPI | O(1) | O(1) | yes, to the engine's stack size | JSPI, JS host only | Pyodide, wasm_of_ocaml default |
+| core stack switching | O(1) | O(1) | yes | unshipped (phase 3) | Kotlin and wasm_of_ocaml, behind flags |
+| inline continuations (.NET) | O(1) | **O(N) nested physical frames** | no | none | Blazor — see below |
+
+Three findings from this survey are worth stating plainly, because they corrected assumptions of
+mine:
+
+**Most production compilers already resume in O(1); almost none replay from the top.** dart2wasm
+stores a `_resume` funcref in its `_AsyncSuspendState` and does one `call_ref` straight into the
+innermost function, which then `br_table`s to the right resume point. Go's `wasm_pc_f_loop` calls
+only the topmost frame, so its rewind is O(1) and the per-frame cost is paid lazily, one trampoline
+round trip per frame as each returns. Asyncify is the only widely used design that is O(depth) on
+re-entry, and that is precisely why everyone who can afford a compiler-integrated lowering builds
+one.
+
+**The way to make (B) safe is a loop or a queue, never recursion.** Kotlin's wasm stdlib does it
+explicitly — `CoroutineImpl.resumeWith` is a `while (true)` walking the `resultContinuation` chain,
+with the comment "This loop unrolls recursion in current.resumeWith(param) to make saner and shorter
+stack traces on resume", and the KEEP states outright that a continuation may not be invoked directly
+"because that may lead to stack overflow on long-running coroutines". Dart uses the microtask queue
+for the same purpose. .NET is the counterexample: it inlines continuations synchronously for latency,
+guarded by a stack probe that on wasm measures the *linear-memory* stack rather than the engine stack
+it needs to protect.
+
+**Only CPS with tail calls answers (C).** Every design whose descent uses ordinary wasm calls holds
+N real frames while running, so a recursive suspendable function that descends before suspending can
+exhaust the stack — that is what the measurement above shows at 8-12k frames, and it applies equally
+to Kotlin's and Dart's designs. With tail calls the descent *is* tail calls and the frames live in
+memory, so depth is bounded by the heap rather than by the stack. Hoot and wasm_of_ocaml both take
+this route and both require tail calls unconditionally.
+
+Two smaller notes. Nobody uses `exnref` to suspend: across Kotlin, Dart, Go, TeaVM, Hoot,
+wasm_of_ocaml, Asyncify, .NET and Pyodide, exceptions are used for exceptions and suspension is
+always an ordinary return or an engine switch. And LLVM already degrades quietly here: `CoroSplit`
+emits `musttail` for C++20 symmetric transfer only when the target supports tail calls, so on wasm
+without `-mtail-call` symmetric transfer silently becomes a stack-growing ordinary call — the same
+trap Swift falls into.
+
 ## What this means for a new language
 
 The 30x wasm penalty measured in `RESULTS.md` is not the price of "every function is a coroutine".

@@ -382,7 +382,7 @@ independent and invisible to the guest. [V]
 | Go (gc) | compiler-built stack unwinding, goroutines in linear memory | single-threaded; "any host function call blocks all goroutines"; reactor mode since Go 1.24 |
 | TinyGo | Asyncify (default `-scheduler=asyncify`) | panics → `unreachable` |
 | Python (Pyodide) | JSPI (`run_sync`), formerly Asyncify | |
-| OCaml (wasm_of_ocaml) | four modes: `--effects=jspi` (default), `cps` (selective, any engine), `double-translation` (direct and CPS versions, chosen at run time), `native` (stack switching, flagged Chrome) | the best real-world data point of all three families in one compiler |
+| OCaml (wasm_of_ocaml) | four modes: `--effects=jspi` (default), `cps` (selective/partial CPS), `native` (stack switching), `disabled`. `double-translation` is a js_of_ocaml/JavaScript flag, not a wasm one | the best real-world data point of all three families in one compiler |
 | Scheme (Guile Hoot) | minimal CPS with explicit stacks | "10× penalties in some cases"; awaits core stack switching |
 | Dart | state machine (`_AsyncSuspendState` + `br_table`) | |
 
@@ -659,9 +659,12 @@ vanishes from the source. [V]
 
 Koka's async is a 2017 design (structured asynchrony with handlers over libuv) whose `std/async`
 branch is unfinished in Koka 3 [V]. wasm_of_ocaml ships four lowerings of the same effect semantics:
-`--effects=jspi` (default), `--effects=cps` (selective: an analysis keeps code that cannot involve
-effects in direct style), `--effects=double-translation` (both versions, chosen at run time), and
-`--effects=native` (core stack switching behind a V8 flag) [V]. Scala goes the other way: capture checking tracks capabilities statically and Loom does the
+`--effects=jspi` (default), `--effects=cps` (a *partial* CPS transform since 5.1.0, not
+whole-program), `--effects=native` (core stack switching, merged May 2026) and `--effects=disabled`
+[V]. `--effects=double-translation` — emit both a direct-style and a CPS version and choose at run
+time — is a js_of_ocaml flag for the JavaScript backend only; the wasm backends assert it
+unreachable, and its own PR notes up to 76% size growth and that "all benefits are lost as soon as an
+effect handler is installed" [V]. Scala goes the other way: capture checking tracks capabilities statically and Loom does the
 suspension [V].
 
 **One-shot vs multi-shot is the decisive cost axis.** Async/await, generators, exceptions and
